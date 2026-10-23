@@ -16,9 +16,20 @@
 *.dylib
 *.dll
 
-# Fortran module files
-*.mod
-*.smod
+# PlatformIO
+.pio/
+.vscode/
+build/
+
+# Arduino IDE / Build artifacts
+*.bin
+*.elf
+*.map
+.build/
+
+# OS Files
+.DS_Store
+Thumbs.db
 
 # Compiled Static libraries
 *.lai
