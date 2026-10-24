@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include <Preferences.h>
-#include <NMEA2000_esp32.h>
+#include <NMEA2000_TWAI.h>
 #include <N2kMessages.h>
 #include <Wire.h>
 
@@ -39,6 +39,7 @@ unsigned long lastStatusTime = 0;
 #define REG_CONFIG 0x03
 
 Preferences preferences;
+tNMEA2000_TWAI NMEA2000(GPIO_NUM_15, GPIO_NUM_16);
 bool relayStates[NUM_CHANNELS];
 uint8_t relayBitmask = 0x00;
 
@@ -73,11 +74,11 @@ void HandleBinaryStatusControl(const tN2kMsg &N2kMsg) {
   unsigned char BankInstance;
   tN2kBinaryStatus BankStates;
 
-  if (ParseN2kBinaryStatus(N2kMsg, BankInstance, BankStates)) {
+  if (ParseN2kSwitchbankControl(N2kMsg, BankInstance, BankStates)) {
     // Only process control commands for Bank 0 (Relay Outputs)
     if (BankInstance == 0) {
       for (int i = 0; i < NUM_CHANNELS; i++) {
-        tN2kOnOff requestedState = N2kGetBinaryStatus(BankStates, i + 1);
+        tN2kOnOff requestedState = N2kGetStatusOnBinaryStatus(BankStates, i + 1);
         
         if (requestedState != N2kOnOff_Unavailable) {
           bool newState = (requestedState == N2kOnOff_On);
@@ -141,7 +142,7 @@ void setup() {
 // ================= LOOP =================
 void loop() {
   // Process incoming NMEA 2000 CAN frames
-  NMEA2000.Parse();
+  NMEA2000.ParseMessages();
 
   unsigned long currentMillis = millis();
 
@@ -214,7 +215,7 @@ void loop() {
     tN2kBinaryStatus relayBank;
     N2kResetBinaryStatus(relayBank);
     for (int i = 0; i < NUM_CHANNELS; i++) {
-      N2kSetBinaryStatus(relayBank, relayStates[i] ? N2kOnOff_On : N2kOnOff_Off, i + 1);
+      N2kSetStatusBinaryOnStatus(relayBank, relayStates[i] ? N2kOnOff_On : N2kOnOff_Off, i + 1);
     }
     SetN2kBinaryStatus(N2kMsg, 0, relayBank); // Instance 0
     NMEA2000.SendMsg(N2kMsg);
@@ -222,10 +223,10 @@ void loop() {
     // --- Bank 1: Sensor & Alarm Status ---
     tN2kBinaryStatus sensorBank;
     N2kResetBinaryStatus(sensorBank);
-    N2kSetBinaryStatus(sensorBank, highWaterAlarmActive ? N2kOnOff_On : N2kOnOff_Off, 1);
-    N2kSetBinaryStatus(sensorBank, bilgeRunningActive ? N2kOnOff_On : N2kOnOff_Off, 2);
-    N2kSetBinaryStatus(sensorBank, portTiltActive ? N2kOnOff_On : N2kOnOff_Off, 3);
-    N2kSetBinaryStatus(sensorBank, stbdTiltActive ? N2kOnOff_On : N2kOnOff_Off, 4);
+    N2kSetStatusBinaryOnStatus(sensorBank, highWaterAlarmActive ? N2kOnOff_On : N2kOnOff_Off, 1);
+    N2kSetStatusBinaryOnStatus(sensorBank, bilgeRunningActive ? N2kOnOff_On : N2kOnOff_Off, 2);
+    N2kSetStatusBinaryOnStatus(sensorBank, portTiltActive ? N2kOnOff_On : N2kOnOff_Off, 3);
+    N2kSetStatusBinaryOnStatus(sensorBank, stbdTiltActive ? N2kOnOff_On : N2kOnOff_Off, 4);
     
     SetN2kBinaryStatus(N2kMsg, 1, sensorBank); // Instance 1
     NMEA2000.SendMsg(N2kMsg);
