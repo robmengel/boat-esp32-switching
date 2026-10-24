@@ -78,6 +78,14 @@ void HandleBinaryStatusControl(const tN2kMsg &N2kMsg) {
           }
         }
       }
+
+      // --- NAV & ANCHOR INTERLOCK LOGIC ---
+      // If Nav Lights (Index 2) were just turned ON, automatically force Anchor Lights (Index 1) ON
+      if (relayStates[2] == true && relayStates[1] == false) {
+        relayStates[1] = true;
+        applyRelayToHardware(1, true);
+        saveRelayStateToFlash(1, true);
+      }
     }
   }
 }
@@ -192,7 +200,7 @@ void loop() {
 
     tN2kMsg N2kMsg;
 
-    // --- Bank 0: Relay Outputs (Anchor, Nav, Dash, Wipers, Cabin, Spares) ---
+    // --- Bank 0: Relay Outputs ---
     tN2kBinaryStatus relayBank;
     N2kResetBinaryStatus(relayBank);
     for (int i = 0; i < NUM_CHANNELS; i++) {
@@ -237,18 +245,4 @@ void initRelayHardware() {
 }
 
 void applyRelayToHardware(int channel, bool state) {
-  if (channel < 0 || channel >= NUM_CHANNELS) return;
-
-  if (state) {
-    relayBitmask |= (1 << channel);  
-  } else {
-    relayBitmask &= ~(1 << channel); 
-  }
-
-  Wire.beginTransmission(TCA9554_ADDR);
-  Wire.write(REG_OUTPUT);
-  Wire.write(relayBitmask);
-  Wire.endTransmission();
-
-  Serial.printf("Relay %d set to: %s (Bitmask: 0x%02X)\n", channel + 1, state ? "ON" : "OFF", relayBitmask);
-}
+  if (channel < 0 || channel >= NUM_CHANNELS)
