@@ -1,6 +1,6 @@
 # DIY NMEA 2000 Digital Switching Node (ESP32-S3)
 
-Custom helm digital switching and monitoring node built for a 25ft boat using the Waveshare ESP32-S3 Industrial 8-Channel Relay Board.
+Custom helm digital switching and monitoring node built for small boats using the Waveshare ESP32-S3 Industrial 8-Channel Relay Board.
 
 ## Features
 - **NMEA 2000 Integration:** Uses PGN 127501 (Binary Status) and PGN 127502 (Binary Control).
