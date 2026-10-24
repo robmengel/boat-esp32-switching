@@ -9,6 +9,24 @@ const int NUM_CHANNELS = 8;
 const unsigned long STATUS_TRANSMIT_INTERVAL = 1000; // Send N2K status every 1 second
 unsigned long lastStatusTime = 0;
 
+// ================= RELAY MAPPING (BANK 0 - OUTPUTS) =================
+// Total: 5 used, 3 spare
+#define RELAY_CABIN_LIGHT   0 // Relay 1 (Tied to DI1 momentary button)
+#define RELAY_ANCHOR_LIGHTS 1 // Relay 2 (Auto-enabled when Nav Lights turn ON)
+#define RELAY_NAV_LIGHTS    2 // Relay 3
+#define RELAY_DASH_LIGHTS   3 // Relay 4
+#define RELAY_WIPER         4 // Relay 5 (Single speed + flyback diode)
+#define RELAY_SPARE_6       5 // Relay 6 (Available)
+#define RELAY_SPARE_7       6 // Relay 7 (Available)
+#define RELAY_SPARE_8       7 // Relay 8 (Available)
+
+// ================= DIGITAL INPUT MAPPING (BANK 1 - SENSORS) =================
+#define DI_CABIN_LIGHT_PIN  39 // DI1: Momentary switch input for cabin light
+#define DI_HIGH_WATER_PIN   38 // DI2: Bilge high-water float switch sensor
+#define DI_BILGE_RUN_PIN    37 // DI3: Bilge pump active/running power monitor
+#define DI_PORT_TILT_PIN    36 // DI4: Port Volvo 250 drive tilt-up warning switch
+#define DI_STBD_TILT_PIN    35 // DI5: Starboard Volvo 250 drive tilt-up warning switch
+
 // Waveshare Board Hardware Pin Definitions
 #define I2C_SDA 42
 #define I2C_SCL 41
@@ -19,13 +37,6 @@ unsigned long lastStatusTime = 0;
 #define REG_OUTPUT 0x01
 #define REG_POLARITY 0x02
 #define REG_CONFIG 0x03
-
-// Digital Inputs (DI) Pin Definitions
-#define DI_CABIN_LIGHT_PIN  39 // DI1: Momentary switch for cabin light (Relay 1)
-#define DI_HIGH_WATER_PIN   38 // DI2: Bilge high-water float switch sensor
-#define DI_BILGE_RUN_PIN    37 // DI3: Bilge pump active/running power monitor
-#define DI_PORT_TILT_PIN    36 // DI4: Port Volvo 250 drive tilt-up warning switch
-#define DI_STBD_TILT_PIN    35 // DI5: Starboard Volvo 250 drive tilt-up warning switch
 
 Preferences preferences;
 bool relayStates[NUM_CHANNELS];
@@ -80,11 +91,11 @@ void HandleBinaryStatusControl(const tN2kMsg &N2kMsg) {
       }
 
       // --- NAV & ANCHOR INTERLOCK LOGIC ---
-      // If Nav Lights (Index 2) were just turned ON, automatically force Anchor Lights (Index 1) ON
-      if (relayStates[2] == true && relayStates[1] == false) {
-        relayStates[1] = true;
-        applyRelayToHardware(1, true);
-        saveRelayStateToFlash(1, true);
+      // If Nav Lights were just turned ON, automatically force Anchor Lights ON
+      if (relayStates[RELAY_NAV_LIGHTS] == true && relayStates[RELAY_ANCHOR_LIGHTS] == false) {
+        relayStates[RELAY_ANCHOR_LIGHTS] = true;
+        applyRelayToHardware(RELAY_ANCHOR_LIGHTS, true);
+        saveRelayStateToFlash(RELAY_ANCHOR_LIGHTS, true);
       }
     }
   }
@@ -141,10 +152,9 @@ void loop() {
   }
   if ((currentMillis - lastCabinDebounceTime) > DEBOUNCE_DELAY) {
     if (cabinReading == LOW && lastCabinButtonState == HIGH) {
-      int targetChannel = 0; // Relay 1
-      relayStates[targetChannel] = !relayStates[targetChannel];
-      applyRelayToHardware(targetChannel, relayStates[targetChannel]);
-      saveRelayStateToFlash(targetChannel, relayStates[targetChannel]);
+      relayStates[RELAY_CABIN_LIGHT] = !relayStates[RELAY_CABIN_LIGHT];
+      applyRelayToHardware(RELAY_CABIN_LIGHT, relayStates[RELAY_CABIN_LIGHT]);
+      saveRelayStateToFlash(RELAY_CABIN_LIGHT, relayStates[RELAY_CABIN_LIGHT]);
     }
   }
   lastCabinButtonState = cabinReading;
@@ -245,4 +255,18 @@ void initRelayHardware() {
 }
 
 void applyRelayToHardware(int channel, bool state) {
-  if (channel < 0 || channel >= NUM_CHANNELS)
+  if (channel < 0 || channel >= NUM_CHANNELS) return;
+
+  if (state) {
+    relayBitmask |= (1 << channel);  
+  } else {
+    relayBitmask &= ~(1 << channel); 
+  }
+
+  Wire.beginTransmission(TCA9554_ADDR);
+  Wire.write(REG_OUTPUT);
+  Wire.write(relayBitmask);
+  Wire.endTransmission();
+
+  Serial.printf("Relay %d set to: %s (Bitmask: 0x%02X)\n", channel + 1, state ? "ON" : "OFF", relayBitmask);
+}
